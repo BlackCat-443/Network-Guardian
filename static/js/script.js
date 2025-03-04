@@ -18,6 +18,7 @@ const closeModal = document.querySelector('.close-modal');
 
 // Chart variables
 let networkChart;
+let exportData = {};
 let chartDatasets = {
     download: [],
     upload: [],
@@ -651,48 +652,277 @@ document.querySelector('.chart-card').appendChild(exportButtons);
 document.getElementById('export-csv').addEventListener('click', exportCSV);
 document.getElementById('export-png').addEventListener('click', exportPNG);
 
-// Function to export chart data as CSV
+
 function exportCSV() {
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Time,Download (KB/s),Upload (KB/s)\n";
-    
-    for (let i = 0; i < chartDatasets.labels.length; i++) {
-        const row = [
-            chartDatasets.labels[i],
-            chartDatasets.download[i],
-            chartDatasets.upload[i]
-        ].join(",");
-        csvContent += row + "\n";
+    Promise.all([
+        fetch('/api/traffic-history').then(r => r.json()),
+        fetch('/api/devices').then(r => r.json()),
+        fetch('/api/stats').then(r => r.json()),
+        fetch('/api/system-info').then(r => r.json())
+    ]).then(([traffic, devices, stats, system]) => {
+        // Formatting Function
+        function formatDataSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let size = bytes;
+            let unitIndex = 0;
+
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+
+            return `${size.toFixed(2)} ${units[unitIndex]}`;
+        }
+
+        // Membuat array untuk CSV
+        const csvRows = [
+            "Network Monitoring Data Export",
+            `Exported At: ${new Date().toISOString()}`,
+            `Hostname: ${system.hostname}`,
+            `IP Address: ${stats.local_ip}`,
+            "", // Baris kosong
+
+            "Traffic History",
+            "Timestamp,Download,Upload,Download Rate,Upload Rate"
+        ];
+
+        // Tambahkan data traffic history
+        for(let i = 0; i < traffic.timestamps.length; i++) {
+            const timestamp = new Date(traffic.timestamps[i]).toLocaleString();
+            const downloadSize = formatDataSize(traffic.download[i]);
+            const uploadSize = formatDataSize(traffic.upload[i]);
+            const dlRate = i > 0 ? 
+                ((traffic.download[i] - traffic.download[i-1])/1024).toFixed(2) + " KB/s" : 
+                "0 KB/s";
+            const ulRate = i > 0 ? 
+                ((traffic.upload[i] - traffic.upload[i-1])/1024).toFixed(2) + " KB/s" : 
+                "0 KB/s";
+            
+            csvRows.push(`${timestamp},${downloadSize},${uploadSize},${dlRate},${ulRate}`);
+        }
+
+        // Tambahkan header devices
+        csvRows.push("", "Connected Devices");
+        csvRows.push("IP Address,Hostname,MAC Address,Status,Blocked,First Seen,Last Seen");
+
+        // Tambahkan data devices
+        devices.forEach(device => {
+            csvRows.push(`${device.ip},${device.hostname},${device.mac},${device.status},${device.blocked ? 'Yes' : 'No'},${new Date(device.first_seen).toLocaleString()},${new Date(device.last_seen).toLocaleString()}`);
+        });
+
+        // Tambahkan statistik jaringan
+        csvRows.push("", "Network Statistics");
+        csvRows.push(`Total Upload: ${formatDataSize(stats.bytes_sent)}`);
+        csvRows.push(`Total Download: ${formatDataSize(stats.bytes_recv)}`);
+        csvRows.push(`Active Devices: ${stats.active_devices}`);
+        csvRows.push(`Blocked Devices: ${stats.blocked_devices}`);
+
+        // Konversi array ke string CSV
+        const csvContent = csvRows.join('\n');
+
+        // Fungsi download manual
+        function manualDownload(content, fileName) {
+            // Coba metode pertama: window.open
+            try {
+                const blob = new Blob([content], {type: 'text/csv;charset=utf-8;'});
+                const url = window.URL.createObjectURL(blob);
+                window.open(url);
+                return true;
+            } catch (openError) {
+                console.error('Window open method failed:', openError);
+            }
+
+            // Metode kedua: window.location
+            try {
+                const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
+                window.location.href = encodedUri;
+                return true;
+            } catch (locationError) {
+                console.error('Location href method failed:', locationError);
+            }
+
+            // Metode terakhir: prompt download
+            try {
+                const downloadLink = document.createElement('a');
+                downloadLink.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(content);
+                downloadLink.download = fileName;
+                
+                // Munculkan konfirmasi download manual
+                alert('Tidak dapat download otomatis. Silakan klik OK dan gunakan "Simpan" di jendela baru.');
+                window.open(downloadLink.href, '_blank');
+                return true;
+            } catch (finalError) {
+                console.error('Final download method failed:', finalError);
+                alert('Gagal melakukan download. Mohon periksa pengaturan browser Anda.');
+                return false;
+            }
+        }
+
+        // Eksekusi download
+        manualDownload(csvContent, `network_data_${new Date().getTime()}.csv`);
+
+        // Logging
+        console.log('CSV Export Completed');
+        console.log(`Exported ${traffic.timestamps.length} traffic records`);
+        console.log(`Exported ${devices.length} devices`);
+    }).catch(error => {
+        console.error('Export error:', error);
+        alert('Gagal mengekspor data: ' + error.message);
+    });
+}
+
+// Tambahkan event listener (opsional)
+document.addEventListener('DOMContentLoaded', () => {
+    const exportButton = document.getElementById('export-csv-btn');
+    if (exportButton) {
+        exportButton.addEventListener('click', exportCSV);
     }
-    
-    // Create download link
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "network_traffic_data.csv");
-    document.body.appendChild(link);
-    
-    // Trigger download
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('CSV exported successfully', 'success');
-}
+});
 
-// Function to export chart as PNG
+
 function exportPNG() {
-    // Convert chart to image
-    const link = document.createElement('a');
-    link.href = networkChart.toBase64Image();
-    link.download = 'network_traffic_chart.png';
-    link.click();
-    
-    showToast('PNG exported successfully', 'success');
+    const formatBytes = (bytes) => {
+        if (typeof bytes !== 'number' || isNaN(bytes)) return '0 B';
+        if (bytes === 0) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const unitIndex = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, unitIndex)).toFixed(2)} ${units[unitIndex]}`;
+    };
+
+    Promise.all([
+        fetch('/api/hostname'),
+        fetch('/api/traffic-history'),
+        fetch('/api/devices'),
+        fetch('/api/stats'),
+        fetch('/api/system-info')
+    ])
+    .then(async ([hostnameRes, trafficRes, devicesRes, statsRes, systemRes]) => {
+        const data = {
+            hostname: await hostnameRes.json(),
+            traffic: await trafficRes.json(),
+            devices: await devicesRes.json(),
+            stats: await statsRes.json(),
+            system: await systemRes.json(),
+            exportTime: new Date().toLocaleString()
+        };
+
+        // 1. Dapatkan base64 image dari chart asli
+        const chartBase64 = networkChart.toBase64Image('png', 1);
+        
+        // 2. Buat container khusus untuk ekspor
+        const exportContainer = document.createElement('div');
+        exportContainer.style.cssText = `
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 1200px;
+            background: white;
+            padding: 30px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            opacity: 0;
+            pointer-events: none;
+        `;
+
+        // 3. Bangun HTML dengan error handling
+        const deviceRows = data.devices.map(device => `
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">${device.ip || 'N/A'}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">${device.hostname || 'Unknown'}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">${device.mac || 'N/A'}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; color: ${device.status === 'up' ? '#27ae60' : '#e74c3c'}">
+                    ${(device.status || 'down').toUpperCase()}
+                </td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6;">
+                    ▲ ${formatBytes(device.upload || 0)} / ▼ ${formatBytes(device.download || 0)}
+                </td>
+            </tr>
+        `).join('');
+
+        exportContainer.innerHTML = `
+            <div style="margin-bottom: 30px;">
+                <h1 style="color: #2c3e50; margin: 0 0 5px;">Laporan Jaringan</h1>
+                <p style="color: #7f8c8d; margin: 0;">Diekspor pada: ${data.exportTime}</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
+                <!-- System Info -->
+                <div>
+                    <h3 style="color: #3498db; margin: 0 0 10px;">Sistem</h3>
+                    <p>Hostname: ${data.system.hostname || 'N/A'}</p>
+                    <p>IP: ${data.stats.local_ip || 'N/A'}</p>
+                    <p>Platform: ${data.system.platform || 'N/A'}</p>
+                    <p>Uptime: ${Math.floor((data.system.uptime || 0)/3600)} jam</p>
+                </div>
+                
+                <!-- Traffic Info -->
+                <div>
+                    <h3 style="color: #3498db; margin: 0 0 10px;">Traffic</h3>
+                    <p>Total Upload: ${formatBytes(data.stats.bytes_sent || 0)}</p>
+                    <p>Total Download: ${formatBytes(data.stats.bytes_recv || 0)}</p>
+                    <p>Interface: ${data.stats.interface || 'N/A'}</p>
+                </div>
+                
+                <!-- Device Summary -->
+                <div>
+                    <h3 style="color: #3498db; margin: 0 0 10px;">Perangkat</h3>
+                    <p>Total: ${data.devices.length || 0}</p>
+                    <p>Online: ${data.devices.filter(d => d.status === 'up').length || 0}</p>
+                    <p>Diblokir: ${data.devices.filter(d => d.blocked).length || 0}</p>
+                </div>
+            </div>
+            
+            <!-- Chart Image -->
+            <img src="${chartBase64}" style="width: 100%; height: auto; margin-bottom: 20px;" alt="Network Chart">
+            
+            <!-- Device Details -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #3498db; margin: 0 0 15px;">Detail Perangkat</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">IP</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Hostname</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">MAC</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Status</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6;">Penggunaan Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${deviceRows}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        document.body.appendChild(exportContainer);
+
+        try {
+            await html2canvas(exportContainer, {
+                scale: 2,
+                useCORS: true,
+                logging: true,
+                windowWidth: exportContainer.scrollWidth,
+                windowHeight: exportContainer.scrollHeight
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `network_report_${Date.now()}.png`;
+                link.click();
+            });
+            
+            showToast('Laporan berhasil di-export', 'success');
+        } catch (error) {
+            console.error('Export Error:', error);
+            showToast('Gagal mengekspor laporan', 'error');
+        } finally {
+            exportContainer.remove();
+        }
+    })
+    .catch(error => {
+        console.error('Fetch Error:', error);
+        showToast('Gagal mengambil data', 'error');
+    });
 }
-
-
-
 
 
 // Add real-time toggle
