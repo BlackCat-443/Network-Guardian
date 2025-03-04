@@ -713,6 +713,29 @@ footer {
 }
 
 
+.export-metadata {
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.export-metadata h3 {
+    color: #3498db;
+    margin-bottom: 15px;
+    font-size: 18px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+.export-metadata p {
+    margin: 8px 0;
+    font-size: 14px;
+    color: #2c3e50;
+}
+
+
 /* Make sure the chart is responsive on smaller screens */
 @media (max-width: 700px) {
     .chart-card {
