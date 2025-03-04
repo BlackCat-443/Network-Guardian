@@ -139,5 +139,5 @@ If you have any questions or need help, please open an issue in the GitHub repos
 
 ## 💾 Download
 
-[**💾 Download Network Guardian**](https://github.com/BlackCat-443/Network-Guardian.git/releases/latest)
+[**💾 Download Network Guardian**](https://github.com/BlackCat-443/Network-Guardian/archive/refs/heads/main.zip)
 
