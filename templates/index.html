@@ -71,10 +71,10 @@
                 <div class="chart-container">
                     <div class="chart-card">
                         <h3>Network Traffic</h3>
-                        <canvas id="network-chart"></canvas>
+                        <canvas id="network-chart" crossorigin="anonymous"></canvas>
                     </div>
                 </div>
-
+            
                 <div class="info-cards">
                     <div class="info-card">
                         <h3>Network Information</h3>
@@ -171,5 +171,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 </body>
 </html>
