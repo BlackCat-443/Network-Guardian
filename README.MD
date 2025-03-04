@@ -13,11 +13,11 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 - **System Information**: View detailed information about your system and network configuration
 - **Access Control**:
   - 🚫 Block Devices: Prevent specific devices from accessing your network *(Still in development)*
-  - 🛂 Kick Devices: Temporarily disconnect devices from your network *(Still in development)*
+  - 🛢️ Kick Devices: Temporarily disconnect devices from your network *(Still in development)*
 - **Customizable Scanning**: Adjust scan intervals based on your needs
 - **Responsive Dashboard**: Access from any device with a web browser
 
-> **🔧 Note:** The **Kick and Block Hostname** features are still under development and may not work as expected. Future updates will enhance these functionalities.
+> **🇙️ Note:** The **Kick and Block Hostname** features are still under development and may not work as expected. Future updates will enhance these functionalities.
 
 ## 🚀 Quick Start
 
@@ -53,6 +53,47 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 
 > ⚠️ **Note:** Some features like blocking and kicking devices require administrative privileges. On Linux/Mac, run with `sudo python app.py` for full functionality.
 
+## 🛠️ Dashboard Pages
+
+### 💻 Devices Page
+
+![Devices Page](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/devices.png)
+
+- Displays all detected devices on the network
+- Shows IP addresses, MAC addresses, and connection status
+- Provides options to **Block** or **Kick** devices *(in development)*
+
+### 🌐 Network Settings Page
+
+![Settings Page](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/settings.png)
+
+- Customize scan intervals
+- Adjust network monitoring preferences
+- Toggle security settings
+
+### 📊 Real-time Traffic Chart
+
+![Live Traffic](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/live_traffic.png)
+
+- Displays real-time upload and download activity
+- Helps in identifying bandwidth usage spikes
+
+### 📊 System Information Page
+
+![System Info](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/system_info.png)
+
+- Displays system resource usage
+- Shows active network interfaces
+- Provides details on network configurations
+
+### 📊 Connected Clients Page
+
+![Connected Clients](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/connected_clients.png)
+
+- Lists all currently connected devices
+- Displays hostname, IP, and MAC addresses
+- Shows active bandwidth usage
+
 ## 🔧 Requirements
 
 The following Python packages are required:
@@ -82,30 +123,7 @@ Network Guardian plans to use different methods based on your operating system:
 - **Linux**: Uses ARP spoofing techniques to temporarily disconnect target devices
 - **Windows**: Temporarily blocks and then unblocks devices after a short period
 
-## 📊 Dashboard
-
-The web interface provides:
-
-- List of all detected devices with their status
-- Real-time traffic monitoring
-- System information
-- Actions for each device (block, kick, etc.) *(Kick & Block Hostname still in development)*
-
-## 🛠️ Advanced Usage
-
-### Customize Scan Interval
-
-Adjust how frequently Network Guardian scans your network:
-
-```
-POST /api/update-settings
-Content-Type: application/json
-{
-  "scan_interval": 120
-}
-```
-
-### API Endpoints
+## 📊 API Endpoints
 
 All features are accessible through REST API endpoints:
 
@@ -121,7 +139,7 @@ All features are accessible through REST API endpoints:
 
 This tool is intended for use on networks you own or have permission to monitor. Using Network Guardian on unauthorized networks may violate local laws and regulations.
 
-## 📍 Author
+## 📌 Author
 
 **Banh_Code** - Creator and Developer of Network Guardian
 
@@ -139,5 +157,5 @@ If you have any questions or need help, please open an issue in the GitHub repos
 
 ## 💾 Download
 
-[**💾 Download Network Guardian**](https://github.com/BlackCat-443/Network-Guardian/archive/refs/heads/main.zip)
+[**💾 Download Network Guardian**](https://github.com/BlackCat-443/Network-Guardian.git/releases/latest)
 
