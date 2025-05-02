@@ -17,7 +17,9 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 - **Customizable Scanning**: Adjust scan intervals based on your needs
 - **Responsive Dashboard**: Access from any device with a web browser
 
-> **🇙️ Note:** The **Kick and Block Hostname** features are still under development and may not work as expected. Future updates will enhance these functionalities.
+## ⚠️ Important Notice
+
+> The **"Block"** and **"Kick"** features are under development. They may not behave as expected or may require additional configuration (e.g., running with administrator/root privileges). Use these features with caution.
 
 ## 🚀 Quick Start
 
@@ -94,20 +96,26 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 - Displays hostname, IP, and MAC addresses
 - Shows active bandwidth usage
 
-## 🔧 Requirements
 
-The following Python packages are required:
+## 📦 Requirements
 
-- Flask
-- nmap-python
-- psutil
-- netifaces
+Listed in `requirements.txt`:
 
-You can install all dependencies using:
-
+```txt
+Flask==2.3.3
+python-nmap==0.7.1
+psutil==5.9.5
+netifaces==0.11.0
 ```
-pip install flask python-nmap psutil netifaces
-```
+
+Make sure you also have the `nmap` tool installed on your system (not just the Python library).  
+Install `nmap` via:
+
+- **Ubuntu/Debian**:
+  ```bash
+  sudo apt install nmap
+  ```
+- **Windows**: [Download from https://nmap.org/download.html](https://nmap.org/download.html)
 
 ## 🛡️ How It Works
 
