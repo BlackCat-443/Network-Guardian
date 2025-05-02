@@ -59,7 +59,7 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 
 ### 💻 Devices Page
 
-![Devices Page](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/devices.png)
+![Network Devices](https://github.com/BlackCat-443/Network-Guardian/blob/main/images/devices.png?raw=true)
 
 - Displays all detected devices on the network
 - Shows IP addresses, MAC addresses, and connection status
@@ -90,7 +90,7 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 
 ### 📊 Connected Clients Page
 
-![Connected Clients](https://raw.githubusercontent.com/BlackCat-443/Network-Guardian/main/images/connected_clients.png)
+![Connected Clients](https://github.com/BlackCat-443/Network-Guardian/blob/main/images/connected_clients.png?raw=true)
 
 - Lists all currently connected devices
 - Displays hostname, IP, and MAC addresses
