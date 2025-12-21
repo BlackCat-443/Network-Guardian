@@ -26,7 +26,7 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 ### Prerequisites
 
 - Python 3.6+
-- pip (Python package manager)
+- pip (Python package manager) New Version
 
 ### Installation
 
@@ -46,14 +46,14 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
    ```
 4. Run the application:
    ```
-   python app.py
+   sudo ./start_netcut.sh
    ```
 5. Open your browser and navigate to:
    ```
-   http://localhost:5000
+   http://localhost:8686
    ```
 
-> ⚠️ **Note:** Some features like blocking and kicking devices require administrative privileges. On Linux/Mac, run with `sudo python app.py` for full functionality.
+> ⚠️ **Note:** Some features like blocking and kicking devices require administrative privileges. On Linux/Mac, run with `sudo ./start_netcut.sh` for full functionality.
 
 ## 🛠️ Dashboard Pages
 
@@ -96,16 +96,83 @@ Network Guardian is a web-based dashboard that gives you complete visibility and
 - Displays hostname, IP, and MAC addresses
 - Shows active bandwidth usage
 
+###  Netcut Conrol
+
+![Connected Clients](https://github.com/BlackCat-443/Network-Guardian/blob/main/images/CutInform.png?raw=true)
+
+## 🔧 NetCut Control Features (Under Development)
+
+### ⚠️ **Status: Research & Development Phase**
+**Current Status:** The NetCut features are currently in active development and research phase. These features are not yet ready for production use and may not function as expected.
+
+### 🔬 **Features Under Research:**
+
+#### 1. **Device Blocking Engine** 🔒
+- **Technology Stack:** ARP Spoofing + iptables firewall integration
+- **Current State:** Basic prototype implemented, requires optimization
+- **Research Areas:**
+  - Cross-platform ARP spoofing techniques
+  - Persistent blocking mechanisms
+  - Detection evasion methods
+  - Performance impact analysis
+
+#### 2. **Temporary Kick Function** 👢
+- **Concept:** Temporarily disconnect devices for configurable time periods
+- **Development Phase:** Algorithm design and testing
+- **Technical Challenges:**
+  - Reliable timing mechanisms
+  - Automatic restoration procedures
+  - Network state preservation
+
+#### 3. **Network Traffic Interception** 📡
+- **Research Goal:** Advanced traffic analysis and filtering
+- **Current Focus:** Packet capture and analysis libraries
+  - **Scapy** integration for packet manipulation
+  - **PyShark** for high-level packet analysis
+  - **DPDK** for high-performance packet processing (future)
+
+### 🛠️ **Technical Implementation Roadmap:**
+
+#### **Phase 1: Research & Prototyping** (Current)
+- ✅ Basic ARP spoofing proof-of-concept
+- ⚠️ iptables rule management system
+- 🔄 Cross-platform compatibility testing
+- 📊 Performance benchmarking
+
+#### **Phase 2: Core Development** (Planned)
+- 🔄 Stable blocking/kicking mechanisms
+- 🔄 User interface integration
+- 🔄 Configuration management system
+- 🔄 Logging and monitoring
+
+#### **Phase 3: Advanced Features** (Future)
+- 🔄 Smart detection algorithms
+- 🔄 Scheduled blocking rules
+- 🔄 Network health monitoring
+- 🔄 API for external integration
+
+### 🧪 **Testing Framework Under Development:**
+
+#### **Laboratory Testing Environment:**
+
 
 ## 📦 Requirements
 
 Listed in `requirements.txt`:
 
 ```txt
-Flask==2.3.3
-python-nmap==0.7.1
+flask==2.3.3
 psutil==5.9.5
+python-nmap==0.7.1
 netifaces==0.11.0
+Werkzeug==3.0.1
+click==8.1.7
+itsdangerous==2.1.2
+Jinja2==3.1.2
+MarkupSafe==2.1.3
+requests==2.31.0
+python-dotenv==1.0.0
+scapy==2.5.0
 ```
 
 Make sure you also have the `nmap` tool installed on your system (not just the Python library).  
@@ -131,17 +198,60 @@ Network Guardian plans to use different methods based on your operating system:
 - **Linux**: Uses ARP spoofing techniques to temporarily disconnect target devices
 - **Windows**: Temporarily blocks and then unblocks devices after a short period
 
-## 📊 API Endpoints
 
-All features are accessible through REST API endpoints:
 
-- `GET /api/devices` - List all discovered devices
-- `GET /api/stats` - Get current network statistics
-- `GET /api/traffic-history` - Get historical traffic data
-- `GET /api/scan` - Trigger an immediate network scan
-- `POST /api/block-device` - Block a device *(Still in Development)*
-- `POST /api/unblock-device` - Unblock a device *(Still in Development)*
-- `POST /api/kick-device` - Temporarily disconnect a device *(Still in Development)*
+### Feature Running *(Still in Development)*
+
+1. **REAL-TIME NETWORK SCANNER** - Deteksi semua device di jaringan
+   - ARP table scanning
+   - IP neighbor detection  
+   - Fast ping detection
+   - Auto-scan setiap 10 detik
+
+2. **NETCUT ENGINE (FULLY WORKING)** - Block/kick devices seperti NetCut asli
+   - ✅ **BLOCK DEVICE** - Potong koneksi internet permanen
+   - ✅ **KICK DEVICE** - Temporary block (30 detik)
+   - ✅ **RESTORE** - Kembalikan koneksi
+   - ✅ **ARP SPOOFING** + iptables firewall
+   - ✅ **Multi-threaded** ARP poisoning
+
+3. **WEB DASHBOARD** - Interface lengkap
+   - Real-time device list dengan IP, MAC, hostname
+   - Network statistics & traffic monitoring
+   - System information
+   - One-click controls untuk block/unblock/kick
+
+4. **API ENDPOINTS** - Untuk integrasi
+   - REST API lengkap
+   - WebSocket untuk real-time updates
+   - Debug endpoints untuk troubleshooting
+
+
+## MANUAL TESTING 
+
+```bash
+
+# Test scanner directly:
+sudo ./venv/bin/python -c "
+import sys
+sys.path.insert(0, '.')
+from app import scan_fast
+devices = scan_fast()
+print(f'Found {len(devices)} devices')
+for d in devices:
+    if not d['is_local']:
+        print(f\"  {d['ip']:15} {d['hostname']:20} {d['mac']}\")
+"
+
+# Check ARP table:
+arp -n
+
+# Test blocking manually:
+curl -X POST http://localhost:8686/api/block-device \\
+  -H \"Content-Type: application/json\" \\
+  -d '{\"identifier\": \"192.168.1.100\"}'
+```
+
 
 ## 🔒 Security Considerations
 
