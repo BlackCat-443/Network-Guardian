@@ -1,4 +1,4 @@
-// [file name]: script.js
+// [file name]: static/js/script.js
 // [file content begin]
 // DOM Elements
 const activeSection = document.querySelector('.active-section');
@@ -10,13 +10,19 @@ const lastUpdateTime = document.getElementById('last-update-time');
 const deviceSearch = document.getElementById('device-search');
 const scanInterval = document.getElementById('scan-interval');
 
+// Stat Badges Elements
+const totalDevicesBadge = document.getElementById('total-devices-badge')?.querySelector('.stat-value');
+const onlineDevicesBadge = document.getElementById('online-devices-badge')?.querySelector('.stat-value');
+const cutDevicesBadge = document.getElementById('cut-devices-badge')?.querySelector('.stat-value');
+const offlineDevicesBadge = document.getElementById('offline-devices-badge')?.querySelector('.stat-value');
+
 // Modal Elements
 const confirmModal = document.getElementById('confirm-modal');
 const modalTitle = document.getElementById('modal-title');
 const modalMessage = document.getElementById('modal-message');
 let modalConfirm = document.getElementById('modal-confirm');
 const modalCancel = document.getElementById('modal-cancel');
-const closeModal = document.querySelector('.close-modal');
+const closeModal = document.querySelectorAll('.close-modal');
 
 // Rename Modal Elements
 const renameModal = document.getElementById('rename-modal');
@@ -24,9 +30,14 @@ let renameConfirm = document.getElementById('rename-confirm');
 const renameCancel = document.getElementById('rename-cancel');
 const newHostnameInput = document.getElementById('new-hostname');
 
+// NetCut Modal Elements
+const netcutInfoModal = document.getElementById('netcut-info-modal');
+const netcutInfoClose = document.getElementById('netcut-info-close');
+const netcutViewLogs = document.getElementById('netcut-view-logs');
+const netcutHelp = document.getElementById('netcut-help');
+
 // Chart variables
 let networkChart;
-let exportData = {};
 let chartDatasets = {
     download: [],
     upload: [],
@@ -45,7 +56,7 @@ let netcutStatus = {
 
 // Function to format bytes into human-readable format
 function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0 || bytes === undefined || bytes === null) return '0 Bytes';
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
@@ -55,35 +66,49 @@ function formatBytes(bytes, decimals = 2) {
 
 // Function to format bandwidth (bytes per second)
 function formatBandwidth(bytesPerSec) {
+    if (bytesPerSec === undefined || bytesPerSec === null) return '0 B/s';
     return formatBytes(bytesPerSec) + '/s';
 }
 
-// Function to update dashboard stats
+// Function to update dashboard stats - FIXED VERSION
 function updateDashboardStats() {
     fetch('/api/stats')
         .then(response => response.json())
         .then(data => {
-            document.getElementById('network-status').textContent = 'Online';
-            document.getElementById('active-devices').textContent = data.active_devices;
+            console.log('Stats data:', data); // Debug
+            
+            // Update stat cards di dashboard
+            document.getElementById('network-status').textContent = data.netcut_active ? 'NetCut Active' : 'Online';
+            document.getElementById('active-devices').textContent = data.active_devices || 0;
             document.getElementById('blocked-devices').textContent = data.blocked_devices || 0;
             document.getElementById('download-stats').textContent = formatBandwidth(data.download_rate);
             document.getElementById('upload-stats').textContent = formatBandwidth(data.upload_rate);
-            document.getElementById('local-ip').textContent = data.local_ip;
-            document.getElementById('gateway-ip').textContent = data.gateway_ip;
-            document.getElementById('interface').textContent = data.interface;
-            lastUpdateTime.textContent = data.timestamp;
+            document.getElementById('local-ip').textContent = data.local_ip || '--';
+            document.getElementById('gateway-ip').textContent = data.gateway_ip || '--';
+            document.getElementById('interface').textContent = data.interface || '--';
+            document.getElementById('netcut-global-status').textContent = data.netcut_active ? 'Active' : 'Inactive';
+            document.getElementById('system-hostname').textContent = data.hostname || '--';
+            document.getElementById('last-scan-time').textContent = data.last_scan || '--';
             
-            // Update NetCut stats jika ada
-            const netcutActiveCount = document.getElementById('netcut-active-count');
-            const netcutGateway = document.getElementById('netcut-gateway');
-            
-            if (netcutActiveCount) {
-                netcutActiveCount.textContent = netcutStatus.total_cuts || 0;
+            if (lastUpdateTime) {
+                lastUpdateTime.textContent = data.timestamp || '--';
             }
             
-            if (netcutGateway && netcutStatus.gateway_ip) {
-                netcutGateway.textContent = netcutStatus.gateway_ip;
-            }
+            // Update system info jika ada
+            fetch('/api/system-info')
+                .then(res => res.json())
+                .then(sysData => {
+                    document.getElementById('system-platform').textContent = sysData.platform || '--';
+                    
+                    // Format uptime
+                    const uptime = sysData.uptime || 0;
+                    const days = Math.floor(uptime / 86400);
+                    const hours = Math.floor((uptime % 86400) / 3600);
+                    const minutes = Math.floor((uptime % 3600) / 60);
+                    document.getElementById('system-uptime').textContent = 
+                        `${days}d ${hours}h ${minutes}m`;
+                })
+                .catch(err => console.error('Error fetching system info:', err));
         })
         .catch(error => {
             console.error('Error fetching stats:', error);
@@ -91,80 +116,88 @@ function updateDashboardStats() {
         });
 }
 
-// Function to update NetCut status
+// Function to update NetCut status - FIXED VERSION
 function updateNetCutStatus() {
     fetch('/api/netcut/status')
         .then(response => response.json())
         .then(data => {
+            console.log('NetCut status:', data); // Debug
             netcutStatus = data;
             
-            // Update NetCut UI status
-            const netcutStatusEl = document.getElementById('netcut-status');
-            if (netcutStatusEl) {
+            // Update NetCut UI status di dashboard
+            const netcutGlobalStatus = document.getElementById('netcut-global-status');
+            if (netcutGlobalStatus) {
+                netcutGlobalStatus.textContent = data.engine_active ? 'Active' : 'Inactive';
+            }
+            
+            // Update NetCut engine status di section netcut
+            const netcutEngineStatus = document.getElementById('netcut-engine-status');
+            if (netcutEngineStatus) {
                 if (data.engine_active) {
-                    netcutStatusEl.innerHTML = 
-                        `<span class="status-indicator status-blocked"></span> NetCut: ACTIVE (${data.total_cuts} devices)`;
-                    netcutStatusEl.className = 'netcut-status-active';
+                    netcutEngineStatus.innerHTML = '<i class="fas fa-power-off"></i> NetCut Engine: ACTIVE';
+                    netcutEngineStatus.className = 'netcut-status-active';
                 } else {
-                    netcutStatusEl.innerHTML = 
-                        `<span class="status-indicator status-offline"></span> NetCut: INACTIVE`;
-                    netcutStatusEl.className = 'netcut-status-inactive';
+                    netcutEngineStatus.innerHTML = '<i class="fas fa-power-off"></i> NetCut Engine: INACTIVE';
+                    netcutEngineStatus.className = 'netcut-status-inactive';
                 }
             }
             
+            // Update gateway info di netcut section
+            document.getElementById('netcut-gateway-ip').textContent = data.gateway_ip || '--';
+            document.getElementById('netcut-gateway-mac').textContent = data.gateway_mac || '--';
+            document.getElementById('netcut-interface').textContent = data.interface || '--';
+            document.getElementById('netcut-local-ip').textContent = data.local_ip || '--';
+            
             // Update active cuts count
-            const netcutActiveCount = document.getElementById('netcut-active-count');
-            if (netcutActiveCount) {
-                netcutActiveCount.textContent = data.total_cuts || 0;
+            const activeCutsCount = document.getElementById('active-cuts-count');
+            if (activeCutsCount) {
+                activeCutsCount.textContent = data.total_cuts || 0;
             }
             
-            // Update gateway info
-            const netcutGateway = document.getElementById('netcut-gateway');
-            if (netcutGateway && data.gateway_ip) {
-                netcutGateway.textContent = data.gateway_ip;
-            }
+            // Update active cuts list
+            updateActiveCutsList(data.cut_targets || []);
         })
         .catch(error => {
             console.error('Error fetching NetCut status:', error);
         });
 }
 
-// Function to update NetCut targets list
-function updateNetCutTargetsList() {
-    const container = document.getElementById('netcut-targets-container');
+// Function to update active cuts list
+function updateActiveCutsList(cutTargets) {
+    const container = document.getElementById('active-cuts-container');
     if (!container) return;
     
-    fetch('/api/netcut/status')
-        .then(response => response.json())
-        .then(data => {
-            container.innerHTML = '';
+    if (cutTargets && cutTargets.length > 0) {
+        container.innerHTML = '';
+        cutTargets.forEach(target => {
+            const cutItem = document.createElement('div');
+            cutItem.className = 'cut-item';
+            cutItem.innerHTML = `
+                <div class="cut-info">
+                    <div class="cut-ip">${target.ip}</div>
+                    <div class="cut-mac">${target.mac || 'MAC unknown'}</div>
+                    <div class="cut-time">Since: ${target.start_time || 'Unknown'}</div>
+                </div>
+                <button class="btn-restore-cut" data-ip="${target.ip}">
+                    <i class="fas fa-wifi"></i> Restore
+                </button>
+            `;
+            container.appendChild(cutItem);
             
-            if (data.cut_targets && data.cut_targets.length > 0) {
-                data.cut_targets.forEach(target => {
-                    const targetItem = document.createElement('div');
-                    targetItem.className = 'netcut-target-item';
-                    targetItem.innerHTML = `
-                        <div class="target-info">
-                            <strong>${target.ip}</strong>
-                            <span>${target.mac || 'MAC unknown'}</span>
-                            <small>Cut since: ${target.start_time}</small>
-                        </div>
-                        <button class="action-btn btn-restore-target" data-ip="${target.ip}">
-                            <i class="fas fa-wifi"></i> Restore
-                        </button>
-                    `;
-                    container.appendChild(targetItem);
-                    
-                    // Add event listener untuk restore button
-                    targetItem.querySelector('.btn-restore-target').addEventListener('click', function() {
-                        const ip = this.getAttribute('data-ip');
-                        restoreSingleTarget(ip);
-                    });
-                });
-            } else {
-                container.innerHTML = '<p class="no-targets">No devices currently cut</p>';
-            }
+            // Add event listener untuk restore button
+            cutItem.querySelector('.btn-restore-cut').addEventListener('click', function() {
+                const ip = this.getAttribute('data-ip');
+                restoreSingleTarget(ip);
+            });
         });
+    } else {
+        container.innerHTML = `
+            <div class="no-cuts-message">
+                <i class="fas fa-wifi"></i>
+                <p>No active internet cuts</p>
+            </div>
+        `;
+    }
 }
 
 function restoreSingleTarget(ip) {
@@ -180,8 +213,10 @@ function restoreSingleTarget(ip) {
         if (data.status === 'success') {
             showToast(`Internet restored for ${ip}`, 'success');
             updateNetCutStatus();
-            updateNetCutTargetsList();
             updateDeviceList();
+            updateDashboardStats();
+        } else {
+            showToast(data.message || 'Failed to restore', 'error');
         }
     })
     .catch(error => {
@@ -190,33 +225,55 @@ function restoreSingleTarget(ip) {
     });
 }
 
-// Function to update traffic chart
+// Function to update traffic chart - FIXED VERSION
 function updateTrafficChart() {
     fetch('/api/traffic-history')
         .then(response => response.json())
         .then(data => {
+            console.log('Traffic data:', data); // Debug
+            
+            if (!data.timestamps || data.timestamps.length === 0) {
+                return;
+            }
+            
             const formattedLabels = data.timestamps.map(timestamp => {
-                const date = new Date(timestamp);
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                try {
+                    const date = new Date(timestamp);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                } catch {
+                    return timestamp;
+                }
             });
+            
+            // Hitung rates
             const downloadRates = [];
             const uploadRates = [];
+            
             for (let i = 1; i < data.download.length; i++) {
                 const prevTime = new Date(data.timestamps[i - 1]);
                 const currTime = new Date(data.timestamps[i]);
-                const timeDiff = (currTime - prevTime) / 1000;
-                const downloadRate = (data.download[i] - data.download[i - 1]) / timeDiff;
-                const uploadRate = (data.upload[i] - data.upload[i - 1]) / timeDiff;
-                downloadRates.push(downloadRate / 1024);
+                const timeDiff = (currTime - prevTime) / 1000; // in seconds
+                
+                const downloadDiff = data.download[i] - data.download[i - 1];
+                const uploadDiff = data.upload[i] - data.upload[i - 1];
+                
+                const downloadRate = timeDiff > 0 ? downloadDiff / timeDiff : 0;
+                const uploadRate = timeDiff > 0 ? uploadDiff / timeDiff : 0;
+                
+                downloadRates.push(downloadRate / 1024); // Convert to KB/s
                 uploadRates.push(uploadRate / 1024);
             }
+            
+            // Duplicate first value untuk alignment
             if (downloadRates.length > 0) {
                 downloadRates.unshift(downloadRates[0]);
                 uploadRates.unshift(uploadRates[0]);
             }
+            
             chartDatasets.labels = formattedLabels;
             chartDatasets.download = downloadRates;
             chartDatasets.upload = uploadRates;
+            
             updateChart();
         })
         .catch(error => {
@@ -224,16 +281,18 @@ function updateTrafficChart() {
         });
 }
 
-// Function to initialize and update the chart
+// Function to initialize and update the chart - FIXED VERSION
 function updateChart() {
-    const ctx = document.getElementById('network-chart').getContext('2d');
+    const ctx = document.getElementById('network-chart');
+    if (!ctx) return;
+    
     if (networkChart) {
         networkChart.data.labels = chartDatasets.labels;
         networkChart.data.datasets[0].data = chartDatasets.download;
         networkChart.data.datasets[1].data = chartDatasets.upload;
         networkChart.update();
     } else {
-        networkChart = new Chart(ctx, {
+        networkChart = new Chart(ctx.getContext('2d'), {
             type: 'line',
             data: {
                 labels: chartDatasets.labels,
@@ -313,31 +372,54 @@ function updateChart() {
     }
 }
 
-// Function to update device list with NetCut integration
+// Function to update device list - FIXED VERSION
 function updateDeviceList() {
     fetch('/api/devices')
         .then(response => response.json())
         .then(data => {
-            const devicesList = document.getElementById('devices-list');
-            devicesList.innerHTML = '';
-            const searchTerm = deviceSearch.value.toLowerCase();
+            console.log('Devices data:', data); // Debug
             
-            // Update status based on NetCut
+            const devicesList = document.getElementById('devices-list');
+            if (!devicesList) return;
+            
+            devicesList.innerHTML = '';
+            const searchTerm = deviceSearch ? deviceSearch.value.toLowerCase() : '';
+            
+            // Update status badges
+            let total = 0;
+            let online = 0;
+            let cut = 0;
+            let offline = 0;
+            
             data.forEach(device => {
-                if (netcutStatus.active_cuts.includes(device.ip)) {
+                if (netcutStatus.active_cuts && netcutStatus.active_cuts.includes(device.ip)) {
                     device.status = 'down';
                     device.blocked = true;
                 }
             });
             
+            // Filter berdasarkan search term
             const filteredDevices = data.filter(device => {
-                return device.hostname.toLowerCase().includes(searchTerm) ||
-                       device.ip.toLowerCase().includes(searchTerm) ||
-                       device.mac.toLowerCase().includes(searchTerm);
+                if (!searchTerm) return true;
+                return (device.hostname || '').toLowerCase().includes(searchTerm) ||
+                       (device.ip || '').toLowerCase().includes(searchTerm) ||
+                       (device.mac || '').toLowerCase().includes(searchTerm);
             });
             
             filteredDevices.forEach(device => {
                 const row = document.createElement('tr');
+                
+                // Hitung statistik
+                total++;
+                if (netcutStatus.active_cuts && netcutStatus.active_cuts.includes(device.ip)) {
+                    cut++;
+                } else if (device.blocked) {
+                    cut++;
+                } else if (device.status === 'up') {
+                    online++;
+                } else {
+                    offline++;
+                }
                 
                 // Status column
                 const statusCell = document.createElement('td');
@@ -347,8 +429,7 @@ function updateDeviceList() {
                 statusIndicator.className = 'status-indicator';
                 let statusText = '';
                 
-                // Check NetCut status first
-                if (netcutStatus.active_cuts.includes(device.ip)) {
+                if (netcutStatus.active_cuts && netcutStatus.active_cuts.includes(device.ip)) {
                     statusIndicator.classList.add('status-netcut');
                     statusText = 'No Internet';
                 } else if (device.blocked) {
@@ -369,22 +450,22 @@ function updateDeviceList() {
                 
                 // Hostname column
                 const hostnameCell = document.createElement('td');
-                hostnameCell.textContent = device.hostname;
+                hostnameCell.textContent = device.hostname || 'Unknown';
                 row.appendChild(hostnameCell);
                 
                 // IP column
                 const ipCell = document.createElement('td');
-                ipCell.textContent = device.ip;
+                ipCell.textContent = device.ip || '--';
                 row.appendChild(ipCell);
                 
                 // MAC column
                 const macCell = document.createElement('td');
-                macCell.textContent = device.mac;
+                macCell.textContent = device.mac || '--';
                 row.appendChild(macCell);
                 
                 // Last seen column
                 const lastSeenCell = document.createElement('td');
-                lastSeenCell.textContent = device.last_seen;
+                lastSeenCell.textContent = device.last_seen || '--';
                 row.appendChild(lastSeenCell);
                 
                 // Actions column
@@ -392,24 +473,28 @@ function updateDeviceList() {
                 const actionsDiv = document.createElement('div');
                 actionsDiv.className = 'device-actions';
                 
-                // Block/Unblock Button dengan NetCut
+                // Block/Unblock Button
                 const blockBtn = document.createElement('button');
                 blockBtn.className = 'action-btn';
                 
-                if (netcutStatus.active_cuts.includes(device.ip) || device.blocked) {
+                if (netcutStatus.active_cuts && netcutStatus.active_cuts.includes(device.ip)) {
                     blockBtn.classList.add('btn-netcut-unblock');
-                    blockBtn.innerHTML = '<i class="fas fa-wifi"></i> Restore Internet';
+                    blockBtn.innerHTML = '<i class="fas fa-wifi"></i> Restore';
+                    blockBtn.addEventListener('click', () => showConfirmModal('unblock', device));
+                } else if (device.blocked) {
+                    blockBtn.classList.add('btn-netcut-unblock');
+                    blockBtn.innerHTML = '<i class="fas fa-wifi"></i> Restore';
                     blockBtn.addEventListener('click', () => showConfirmModal('unblock', device));
                 } else {
                     blockBtn.classList.add('btn-netcut-block');
-                    blockBtn.innerHTML = '<i class="fas fa-wifi-slash"></i> Cut Internet';
+                    blockBtn.innerHTML = '<i class="fas fa-wifi-slash"></i> Cut';
                     blockBtn.addEventListener('click', () => showConfirmModal('block', device));
                 }
                 
-                // Kick Button dengan NetCut
+                // Kick Button
                 const kickBtn = document.createElement('button');
                 kickBtn.className = 'action-btn btn-netcut-kick';
-                kickBtn.innerHTML = '<i class="fas fa-power-off"></i> Kick (30s)';
+                kickBtn.innerHTML = '<i class="fas fa-power-off"></i> Kick';
                 kickBtn.addEventListener('click', () => showConfirmModal('kick', device));
                 
                 // Rename Button
@@ -426,6 +511,16 @@ function updateDeviceList() {
                 
                 devicesList.appendChild(row);
             });
+            
+            // Update stat badges
+            if (totalDevicesBadge) totalDevicesBadge.textContent = total;
+            if (onlineDevicesBadge) onlineDevicesBadge.textContent = online;
+            if (cutDevicesBadge) cutDevicesBadge.textContent = cut;
+            if (offlineDevicesBadge) offlineDevicesBadge.textContent = offline;
+            
+            // Update juga di dashboard stats
+            document.getElementById('active-devices').textContent = online;
+            document.getElementById('blocked-devices').textContent = cut;
         })
         .catch(error => {
             console.error('Error fetching devices:', error);
@@ -433,142 +528,104 @@ function updateDeviceList() {
         });
 }
 
-// Function to show confirmation modal dengan NetCut
+// Function to show confirmation modal
 function showConfirmModal(action, device) {
+    if (!confirmModal) return;
+    
     let title, message;
-    modalConfirm.className = 'confirm-btn';
     
     if (action === 'block') {
         title = 'Cut Internet (NetCut)';
-        message = `Cut internet connection for ${device.hostname} (${device.ip})?`;
-        modalConfirm.classList.add('btn-netcut-block');
+        message = `Cut internet connection for ${device.hostname || device.ip} (${device.ip})?`;
     } else if (action === 'unblock') {
         title = 'Restore Internet';
-        message = `Restore internet connection for ${device.hostname} (${device.ip})?`;
-        modalConfirm.classList.add('btn-netcut-unblock');
+        message = `Restore internet connection for ${device.hostname || device.ip} (${device.ip})?`;
     } else if (action === 'kick') {
-        title = 'Kick Device (NetCut)';
-        message = `Temporarily disconnect ${device.hostname} (${device.ip}) for 30 seconds?`;
-        modalConfirm.classList.add('btn-netcut-kick');
+        title = 'Kick Device';
+        message = `Temporarily disconnect ${device.hostname || device.ip} (${device.ip}) for 30 seconds?`;
     }
     
     modalTitle.textContent = title;
     modalMessage.textContent = message;
     confirmModal.style.display = 'block';
     
-    // Clone modalConfirm untuk remove previous listeners
-    const clone = modalConfirm.cloneNode(true);
-    modalConfirm.parentNode.replaceChild(clone, modalConfirm);
-    modalConfirm = clone;
+    // Setup confirm button
+    const confirmBtn = document.getElementById('modal-confirm');
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
     
-    // Add new event listener dengan NetCut
-    modalConfirm.addEventListener('click', () => {
+    newConfirmBtn.addEventListener('click', () => {
         confirmModal.style.display = 'none';
         
         if (action === 'block') {
-            // Gunakan NetCut untuk block
             fetch('/api/netcut/cut', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ target_ip: device.ip })
             })
-            .then(response => response.json())
+            .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Juga panggil block API biasa untuk iptables
-                    return fetch('/api/block-device', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ identifier: device.ip })
-                    });
-                } else {
-                    throw new Error(data.message);
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                showToast(`Internet cut for ${device.hostname}`, 'success');
-                updateDeviceList();
-                updateDashboardStats();
-                updateNetCutStatus();
-                updateNetCutTargetsList();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Failed to cut internet: ' + error.message, 'error');
-            });
-            
-        } else if (action === 'unblock') {
-            // Restore dari NetCut
-            fetch('/api/netcut/restore', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ target_ip: device.ip })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    // Juga unblock dari iptables
-                    return fetch('/api/unblock-device', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ identifier: device.ip })
-                    });
-                } else {
-                    throw new Error(data.message);
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                showToast(`Internet restored for ${device.hostname}`, 'success');
-                updateDeviceList();
-                updateDashboardStats();
-                updateNetCutStatus();
-                updateNetCutTargetsList();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Failed to restore internet: ' + error.message, 'error');
-            });
-            
-        } else if (action === 'kick') {
-            // Kick dengan NetCut
-            fetch('/api/kick-device', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ identifier: device.ip })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showToast(`${device.hostname} kicked for 30 seconds`, 'success');
+                    showToast(`Internet cut for ${device.hostname || device.ip}`, 'success');
                     updateDeviceList();
                     updateDashboardStats();
                     updateNetCutStatus();
-                    updateNetCutTargetsList();
+                } else {
+                    showToast(data.message || 'Failed to cut internet', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Failed to cut internet', 'error');
+            });
+            
+        } else if (action === 'unblock') {
+            fetch('/api/netcut/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_ip: device.ip })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(`Internet restored for ${device.hostname || device.ip}`, 'success');
+                    updateDeviceList();
+                    updateDashboardStats();
+                    updateNetCutStatus();
+                } else {
+                    showToast(data.message || 'Failed to restore', 'error');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Failed to restore internet', 'error');
+            });
+            
+        } else if (action === 'kick') {
+            fetch('/api/kick-device', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier: device.ip })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(`${device.hostname || device.ip} kicked for 30 seconds`, 'success');
+                    updateDeviceList();
+                    updateDashboardStats();
+                    updateNetCutStatus();
                     
-                    // Auto update setelah 30 detik
                     setTimeout(() => {
                         updateDeviceList();
                         updateNetCutStatus();
                     }, 31000);
                 } else {
-                    showToast(data.message, 'error');
+                    showToast(data.message || 'Failed to kick', 'error');
                 }
             })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Failed to kick device: ' + error.message, 'error');
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Failed to kick device', 'error');
             });
         }
     });
@@ -576,14 +633,16 @@ function showConfirmModal(action, device) {
 
 // Function to show rename modal
 function showRenameModal(device) {
+    if (!renameModal) return;
+    
     renameModal.style.display = 'block';
-    newHostnameInput.value = device.hostname;
-    if (renameConfirm) {
-        const clone = renameConfirm.cloneNode(true);
-        renameConfirm.parentNode.replaceChild(clone, renameConfirm);
-        renameConfirm = clone;
-    }
-    renameConfirm.addEventListener('click', () => {
+    newHostnameInput.value = device.hostname || '';
+    
+    const confirmBtn = document.getElementById('rename-confirm');
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    
+    newConfirmBtn.addEventListener('click', () => {
         const newHostname = newHostnameInput.value.trim();
         if (newHostname) {
             renameDevice(device.ip, newHostname);
@@ -598,105 +657,25 @@ function showRenameModal(device) {
 function renameDevice(ip, newHostname) {
     fetch('/api/rename-device', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip, newHostname })
     })
-    .then(response => {
-        if (!response.ok) {
-            return response.text().then(text => { throw new Error('Error ' + response.status + ': ' + text); });
-        }
-        return response.json();
-    })
+    .then(res => res.json())
     .then(data => {
         if (data.status === 'success') {
             showToast(data.message, 'success');
             updateDeviceList();
         } else {
-            showToast(data.message, 'error');
+            showToast(data.message || 'Failed to rename', 'error');
         }
     })
-    .catch(error => {
-        console.error('Error renaming device:', error);
-        showToast('Failed to rename device: ' + error.message, 'error');
+    .catch(err => {
+        console.error('Error:', err);
+        showToast('Failed to rename device', 'error');
     });
 }
 
-// Function to handle mass rename from JSON file with IP check
-function renameDevicesMass(jsonData) {
-    if (!Array.isArray(jsonData)) {
-        if (typeof jsonData === 'object' && jsonData !== null) {
-            jsonData = [jsonData];
-        } else {
-            showToast('Invalid JSON format: expected an array or a single object with { ip, hostname }', 'error');
-            return;
-        }
-    }
-    fetch('/api/devices')
-        .then(response => response.json())
-        .then(devices => {
-            let matchedData = [];
-            let unmatchedIPs = [];
-            jsonData.forEach(item => {
-                if (!item.ip || !item.hostname) return;
-                let match = devices.find(device => device.ip === item.ip);
-                if (match) {
-                    matchedData.push({ ip: item.ip, newHostname: item.hostname });
-                } else {
-                    unmatchedIPs.push(item.ip);
-                }
-            });
-            if (matchedData.length > 0) {
-                fetch('/api/rename-devices-mass', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(matchedData)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error('Error ' + response.status + ': ' + text); });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.status === 'success') {
-                        showToast(data.message, 'success');
-                        updateDeviceList();
-                    } else {
-                        showToast(data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error renaming devices:', error);
-                    showToast('Failed to rename devices: ' + error.message, 'error');
-                });
-            } else {
-                showToast('No matching devices found for the provided JSON data', 'warning');
-            }
-            if (unmatchedIPs.length > 0) {
-                showToast('The following IP(s) were not found: ' + unmatchedIPs.join(', '), 'warning');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching devices:', error);
-            showToast('Error fetching devices for validation', 'error');
-        });
-}
-
-// Function to close the confirmation modal
-function closeConfirmModal() {
-    confirmModal.style.display = 'none';
-}
-
-// Function to close the rename modal
-function closeRenameModal() {
-    renameModal.style.display = 'none';
-}
-
-// Function to show a toast notification
+// Function to show toast notification
 function showToast(message, type = 'info') {
     let toastContainer = document.querySelector('.toast-container');
     if (!toastContainer) {
@@ -704,22 +683,18 @@ function showToast(message, type = 'info') {
         toastContainer.className = 'toast-container';
         document.body.appendChild(toastContainer);
     }
+    
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
+    
     let icon;
     switch (type) {
-        case 'success':
-            icon = 'fas fa-check-circle';
-            break;
-        case 'error':
-            icon = 'fas fa-exclamation-circle';
-            break;
-        case 'warning':
-            icon = 'fas fa-exclamation-triangle';
-            break;
-        default:
-            icon = 'fas fa-info-circle';
+        case 'success': icon = 'fas fa-check-circle'; break;
+        case 'error': icon = 'fas fa-exclamation-circle'; break;
+        case 'warning': icon = 'fas fa-exclamation-triangle'; break;
+        default: icon = 'fas fa-info-circle';
     }
+    
     toast.innerHTML = `
         <div class="toast-content">
             <span class="toast-icon"><i class="${icon}"></i></span>
@@ -727,160 +702,104 @@ function showToast(message, type = 'info') {
         </div>
         <span class="toast-close"><i class="fas fa-times"></i></span>
     `;
+    
     toastContainer.appendChild(toast);
+    
     toast.querySelector('.toast-close').addEventListener('click', () => {
         toast.remove();
     });
+    
     setTimeout(() => {
         toast.remove();
     }, 3000);
 }
 
-// Function to update all dashboard data
-function refreshDashboard() {
-    refreshBtn.classList.add('loading');
+// Function to refresh all data
+function refreshAll() {
+    if (refreshBtn) {
+        refreshBtn.classList.add('loading');
+    }
+    
     fetch('/api/scan')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
-            updateDashboardStats();
-            updateTrafficChart();
+            console.log('Scan triggered:', data);
             setTimeout(() => {
-                refreshBtn.classList.remove('loading');
+                updateDashboardStats();
+                updateDeviceList();
+                updateNetCutStatus();
+                updateTrafficChart();
+                
+                if (refreshBtn) {
+                    refreshBtn.classList.remove('loading');
+                }
                 showToast('Dashboard refreshed', 'success');
             }, 1000);
         })
-        .catch(error => {
-            console.error('Error initiating scan:', error);
-            refreshBtn.classList.remove('loading');
-            showToast('Failed to refresh dashboard', 'error');
+        .catch(err => {
+            console.error('Error:', err);
+            if (refreshBtn) {
+                refreshBtn.classList.remove('loading');
+            }
+            showToast('Failed to refresh', 'error');
         });
 }
 
-// Function to refresh device list
-function refreshDeviceList() {
-    refreshDevicesBtn.classList.add('loading');
+// Function to refresh devices only
+function refreshDevices() {
+    if (refreshDevicesBtn) {
+        refreshDevicesBtn.classList.add('loading');
+    }
+    
     fetch('/api/scan')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
-            updateDeviceList();
+            console.log('Devices scan triggered:', data);
             setTimeout(() => {
-                refreshDevicesBtn.classList.remove('loading');
+                updateDeviceList();
+                updateNetCutStatus();
+                
+                if (refreshDevicesBtn) {
+                    refreshDevicesBtn.classList.remove('loading');
+                }
                 showToast('Device list refreshed', 'success');
             }, 1000);
         })
-        .catch(error => {
-            console.error('Error initiating scan:', error);
-            refreshDevicesBtn.classList.remove('loading');
-            showToast('Failed to refresh device list', 'error');
+        .catch(err => {
+            console.error('Error:', err);
+            if (refreshDevicesBtn) {
+                refreshDevicesBtn.classList.remove('loading');
+            }
+            showToast('Failed to refresh devices', 'error');
         });
 }
 
 // Function to save settings
 function saveSettings() {
+    if (!scanInterval) return;
+    
     const newInterval = parseInt(scanInterval.value);
     if (isNaN(newInterval) || newInterval < 30) {
         showToast('Scan interval must be at least 30 seconds', 'warning');
         return;
     }
+    
     fetch('/api/update-settings', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scan_interval: newInterval })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.status === 'success') {
             showToast('Settings saved successfully', 'success');
         } else {
-            showToast(data.message, 'error');
+            showToast(data.message || 'Failed to save', 'error');
         }
     })
-    .catch(error => {
-        console.error('Error saving settings:', error);
+    .catch(err => {
+        console.error('Error:', err);
         showToast('Failed to save settings', 'error');
-    });
-}
-
-// Function to create NetCut control panel
-function createNetCutControlPanel() {
-    const dashboardSection = document.querySelector('#dashboard .info-cards');
-    if (!dashboardSection) return;
-    
-    const netcutPanel = document.createElement('div');
-    netcutPanel.className = 'netcut-panel';
-    netcutPanel.innerHTML = `
-        <div class="dashboard-card">
-            <div class="card-header">
-                <h3><i class="fas fa-bolt"></i> NetCut Control</h3>
-                <span id="netcut-status" class="netcut-status-inactive">
-                    <span class="status-indicator status-offline"></span> NetCut: INACTIVE
-                </span>
-            </div>
-            <div class="card-body">
-                <div class="netcut-stats">
-                    <div class="stat-item">
-                        <div class="stat-label">Active Cuts</div>
-                        <div class="stat-value" id="netcut-active-count">0</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Gateway</div>
-                        <div class="stat-value" id="netcut-gateway">--</div>
-                    </div>
-                </div>
-                <div class="netcut-controls">
-                    <button id="netcut-restore-all" class="action-btn btn-netcut-unblock">
-                        <i class="fas fa-wifi"></i> Restore All Internet
-                    </button>
-                    <button id="netcut-view-targets" class="action-btn">
-                        <i class="fas fa-list"></i> View Cut Devices
-                    </button>
-                </div>
-                <div id="netcut-targets-list" class="targets-list" style="display: none; margin-top: 15px;">
-                    <h4>Devices with Internet Cut:</h4>
-                    <div id="netcut-targets-container"></div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    dashboardSection.parentNode.insertBefore(netcutPanel, dashboardSection);
-    
-    // Event listeners untuk NetCut controls
-    document.getElementById('netcut-restore-all').addEventListener('click', () => {
-        if (confirm('Restore internet for ALL devices?')) {
-            fetch('/api/netcut/restore', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showToast('All internet connections restored', 'success');
-                    updateDeviceList();
-                    updateNetCutStatus();
-                    updateNetCutTargetsList();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Failed to restore all', 'error');
-            });
-        }
-    });
-    
-    document.getElementById('netcut-view-targets').addEventListener('click', () => {
-        const targetsList = document.getElementById('netcut-targets-list');
-        if (targetsList.style.display === 'none') {
-            targetsList.style.display = 'block';
-            updateNetCutTargetsList();
-        } else {
-            targetsList.style.display = 'none';
-        }
     });
 }
 
@@ -888,69 +807,240 @@ function createNetCutControlPanel() {
 navLinks.forEach(link => {
     link.addEventListener('click', (e) => {
         e.preventDefault();
+        
         navLinks.forEach(navLink => {
             navLink.parentElement.classList.remove('active');
         });
+        
         document.querySelectorAll('section').forEach(section => {
             section.classList.remove('active-section');
         });
+        
         link.parentElement.classList.add('active');
+        
         const targetId = link.getAttribute('href').substring(1);
-        document.getElementById(targetId).classList.add('active-section');
-        if (targetId === 'devices') {
-            updateDeviceList();
+        const targetSection = document.getElementById(targetId);
+        if (targetSection) {
+            targetSection.classList.add('active-section');
+            
+            if (targetId === 'devices') {
+                updateDeviceList();
+            } else if (targetId === 'netcut') {
+                updateNetCutStatus();
+            }
         }
     });
 });
 
 // Event listeners
-refreshBtn.addEventListener('click', refreshDashboard);
-refreshDevicesBtn.addEventListener('click', refreshDeviceList);
-saveSettingsBtn.addEventListener('click', saveSettings);
-deviceSearch.addEventListener('input', updateDeviceList);
-modalCancel.addEventListener('click', closeConfirmModal);
-closeModal.addEventListener('click', closeConfirmModal);
-renameCancel.addEventListener('click', closeRenameModal);
-document.querySelector('.close-modal').addEventListener('click', closeRenameModal);
+if (refreshBtn) refreshBtn.addEventListener('click', refreshAll);
+if (refreshDevicesBtn) refreshDevicesBtn.addEventListener('click', refreshDevices);
+if (saveSettingsBtn) saveSettingsBtn.addEventListener('click', saveSettings);
+if (deviceSearch) deviceSearch.addEventListener('input', updateDeviceList);
 
-// Close modal when clicking outside
+// Modal close buttons
+closeModal.forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (confirmModal) confirmModal.style.display = 'none';
+        if (renameModal) renameModal.style.display = 'none';
+        if (netcutInfoModal) netcutInfoModal.style.display = 'none';
+    });
+});
+
+if (modalCancel) {
+    modalCancel.addEventListener('click', () => {
+        if (confirmModal) confirmModal.style.display = 'none';
+    });
+}
+
+if (renameCancel) {
+    renameCancel.addEventListener('click', () => {
+        if (renameModal) renameModal.style.display = 'none';
+    });
+}
+
+// Close modals when clicking outside
 window.addEventListener('click', (e) => {
     if (e.target === confirmModal) {
-        closeConfirmModal();
+        confirmModal.style.display = 'none';
     }
     if (e.target === renameModal) {
-        closeRenameModal();
+        renameModal.style.display = 'none';
+    }
+    if (e.target === netcutInfoModal) {
+        netcutInfoModal.style.display = 'none';
     }
 });
+
+// NetCut quick actions
+if (document.getElementById('netcut-restore-all')) {
+    document.getElementById('netcut-restore-all').addEventListener('click', () => {
+        if (confirm('Restore internet for ALL devices?')) {
+            fetch('/api/netcut/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('All internet connections restored', 'success');
+                    updateDeviceList();
+                    updateDashboardStats();
+                    updateNetCutStatus();
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('Failed to restore all', 'error');
+            });
+        }
+    });
+}
+
+if (document.getElementById('netcut-test')) {
+    document.getElementById('netcut-test').addEventListener('click', () => {
+        fetch('/api/netcut/test')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('NetCut Engine is running', 'info');
+                    updateNetCutStatus();
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showToast('NetCut test failed', 'error');
+            });
+    });
+}
+
+if (document.getElementById('netcut-cleanup')) {
+    document.getElementById('netcut-cleanup').addEventListener('click', () => {
+        if (confirm('Cleanup all NetCut cuts and restore internet?')) {
+            fetch('/api/netcut/flush-all')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('All cuts cleaned up', 'success');
+                        updateDeviceList();
+                        updateDashboardStats();
+                        updateNetCutStatus();
+                    }
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    showToast('Cleanup failed', 'error');
+                });
+        }
+    });
+}
+
+if (netcutHelp) {
+    netcutHelp.addEventListener('click', () => {
+        if (netcutInfoModal) {
+            netcutInfoModal.style.display = 'block';
+        }
+    });
+}
+
+if (netcutInfoClose) {
+    netcutInfoClose.addEventListener('click', () => {
+        if (netcutInfoModal) {
+            netcutInfoModal.style.display = 'none';
+        }
+    });
+}
 
 // Handle mass rename from JSON file
-document.getElementById('rename-mass-btn').addEventListener('click', () => {
-    const fileInput = document.getElementById('rename-mass-upload');
-    const file = fileInput.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            let jsonData = JSON.parse(e.target.result);
-            renameDevicesMass(jsonData);
-        };
-        reader.readAsText(file);
-    } else {
-        showToast('Please select a JSON file', 'error');
-    }
-});
+const renameMassBtn = document.getElementById('rename-mass-btn');
+const renameMassUpload = document.getElementById('rename-mass-upload');
 
-// Initialize dashboard dengan NetCut
-document.addEventListener('DOMContentLoaded', () => {
-    // Create NetCut control panel
-    createNetCutControlPanel();
+if (renameMassBtn && renameMassUpload) {
+    renameMassBtn.addEventListener('click', () => {
+        const file = renameMassUpload.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    processMassRename(jsonData);
+                } catch (err) {
+                    showToast('Invalid JSON file', 'error');
+                }
+            };
+            reader.readAsText(file);
+        } else {
+            showToast('Please select a JSON file', 'error');
+        }
+    });
+}
+
+function processMassRename(jsonData) {
+    if (!Array.isArray(jsonData)) {
+        showToast('JSON must be an array of {ip, newHostname}', 'error');
+        return;
+    }
     
-    // Initialize dashboard
+    fetch('/api/devices')
+        .then(res => res.json())
+        .then(devices => {
+            const validData = [];
+            const invalidIPs = [];
+            
+            jsonData.forEach(item => {
+                if (!item.ip || !item.newHostname) return;
+                
+                const exists = devices.some(d => d.ip === item.ip);
+                if (exists) {
+                    validData.push({ ip: item.ip, newHostname: item.newHostname });
+                } else {
+                    invalidIPs.push(item.ip);
+                }
+            });
+            
+            if (validData.length > 0) {
+                fetch('/api/rename-devices-mass', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(validData)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                        updateDeviceList();
+                    } else {
+                        showToast(data.message || 'Failed to rename', 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    showToast('Failed to rename devices', 'error');
+                });
+            }
+            
+            if (invalidIPs.length > 0) {
+                showToast(`IPs not found: ${invalidIPs.join(', ')}`, 'warning');
+            }
+        })
+        .catch(err => {
+            console.error('Error:', err);
+            showToast('Failed to fetch devices', 'error');
+        });
+}
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Dashboard initializing...');
+    
+    // Initial updates
     updateDashboardStats();
     updateTrafficChart();
     updateDeviceList();
     updateNetCutStatus();
     
-    // Set intervals untuk auto-update
+    // Set auto-refresh intervals
     setInterval(() => {
         updateDashboardStats();
         updateTrafficChart();
@@ -959,5 +1049,18 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         updateNetCutStatus();
     }, 5000);
+    
+    setInterval(() => {
+        updateDeviceList();
+    }, 15000);
+    
+    // Update current time di footer
+    setInterval(() => {
+        const currentTimeEl = document.getElementById('current-time');
+        if (currentTimeEl) {
+            const now = new Date();
+            currentTimeEl.textContent = now.toLocaleTimeString();
+        }
+    }, 1000);
 });
 // [file content end]
